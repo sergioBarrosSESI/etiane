@@ -1,3 +1,7 @@
+BEGIN TRY
+
+	BEGIN TRANSACTION
+
 -- 1.	Tabela temporária para armazenar os dados de auditoria
 
 IF OBJECT_ID('tempdb..#TEMP_AUDITORIA') IS NOT NULL
@@ -10,7 +14,7 @@ CREATE TABLE #TEMP_AUDITORIA (
 );
 
 
--- 1.	Tabela temporária para armazenar o arquivo importado
+-- 2.	Tabela temporária para armazenar o arquivo importado
 IF OBJECT_ID('tempdb..#TEMP_PRODUTOS') IS NOT NULL
     DROP TABLE #TEMP_PRODUTOS;
 
@@ -22,7 +26,7 @@ CREATE TABLE #TEMP_PRODUTOS (
     SITUACAO                   VARCHAR(50),
     GENERICO	               VARCHAR(10),
 	SIMILAR	          		   VARCHAR(10),
-	RX	              		   VARCHAR(10),
+	ETICO	             	   VARCHAR(10),
     ANVISA                     VARCHAR(100),
     UN_FARMA                   VARCHAR(50),
     UM_MEDIDA                  VARCHAR(50),
@@ -57,15 +61,15 @@ CREATE TABLE #TEMP_PRODUTOS (
     APLICAR_VERBA              VARCHAR(10),
     QT_PONTO_FIDELIDADE        INT,
     PRINCIPIO_ATIVO            INT,
-    SUB_CATEG                  INT,
-    CATEG                      INT,
-    LINHA                      INT,
-    MARCA                      INT,
-    CLASSIFICACAO_ECOM         INT,
-    FAMILIA                    INT
+    SUB_CATEG_ARV              INT,
+    CATEG_ARV                  INT,
+    LINHA_ARV                  INT,
+    MARCA_ARV                  INT,
+    CLASSIFICACAO_ARV          INT,
+    FAMILIA_ARV                INT
 );
 
--- 2.	Importação do CSV
+-- 3.	Importação do CSV
 BULK INSERT #TEMP_PRODUTOS
 FROM 'G:\Importar_produtos\produtos.csv'
 WITH (
@@ -75,7 +79,7 @@ WITH (
     CODEPAGE = 'ACP' -- ou '65001' se for UTF-8
 );
 
--- 3.	Declaração das variáveis
+-- 4.	Declaração das variáveis
 
 DECLARE @CD_PROD			INT,
     @DESCRICAO				VARCHAR(255),
@@ -120,16 +124,16 @@ DECLARE @CD_PROD			INT,
     @APLICAR_VERBA			VARCHAR(10),
     @QT_PONTO_FIDELIDADE	INT,
     @PRINCIPIO_ATIVO		INT,
-    @SUB_CATEGORIA			INT,
-    @CATEGORIA				INT,
-    @LINHA					INT,
-    @MARCA					INT,
-    @CLASSIFICACAO_ECOM		INT,
-    @FAMILIA				INT,
+    @SUB_CATEG_ARV			INT,
+    @CATEGORIA_ARV			INT,
+    @LINHA_ARV				INT,
+    @MARCA_ARV				INT,
+    @CLASSIFICACAO_ARV		INT,
+    @FAMILIA_ARV			INT,
 	@DT_CAD					DATE = GETDATE();
 
 
--- 4.	Declara cursor
+-- 5.	Declara cursor
 DECLARE C_PROD CURSOR FOR
 SELECT
     DESCRICAO,
@@ -139,7 +143,7 @@ SELECT
     SITUACAO,
     GENERICO,
 	SIMILAR,
-	RX,
+	ETICO,
     ANVISA,
     UN_FARMA,
     UM_MEDIDA,
@@ -172,7 +176,7 @@ SELECT
     CLASSIFICACAO_ECOM
 FROM #TEMP_PRODUTOS;
 
--- 5.	Abre cursor
+-- 6.	Abre cursor
 OPEN PROD_CURSOR;
 FETCH NEXT FROM PROD_CURSOR INTO
     @DESCRICAO,
@@ -180,7 +184,9 @@ FETCH NEXT FROM PROD_CURSOR INTO
     @FABRICANTE,
     @REGISTRO_MS,
     @SITUACAO,
-    @CLASSIFICACAO,
+	@GENERICO,
+	@SIMILAR,
+	@ETICO,
     @CLASS_ANVISA,
     @UN_FARMA,
     @UN_ANVISA,
@@ -212,14 +218,14 @@ FETCH NEXT FROM PROD_CURSOR INTO
     @DESC_ECOMMERCE,
     @CLASSIFICACAO_ECOM;
 
--- 6.	Inicia o laço
+-- 7.	Inicia o laço
 WHILE @@FETCH_STATUS = 0
 BEGIN
-    -- 7. Obter o próximo código de produto via procedure
+    -- 8. Obter o próximo código de produto via procedure
     --SELECT @CD_PROD = CD_PROD FROM OPENQUERY([SEU_SERVIDOR], 'EXEC P_OBTEM_PROX_COD_PRODUTO');
 	EXEC P_OBTEM_PROX_COD_PRODUTO @CD_PROD OUTPUT;
 
-    -- 8. Inserir na EST_PROD
+    -- 9. Inserir na EST_PROD
 Insert Into EST_PROD(
   CD_EMP, 
   CD_FILIAL, 
@@ -498,7 +504,7 @@ Values
     0, --CD_CATEG_ECOMMERCE
     0, --CD_SUB_CATEG_ECOMMERCE
     0, --CD_DEPTO_ECOMMERCE
-    ISNULL(@CLASSIFICACAO_ECOM,446),--CD_CTR_CLAS_ECOMMERCE
+    ISNULL(@CLASSIFICACAO_ECOM,500),--CD_CTR_CLAS_ECOMMERCE
     0, --LARGURA_ECOMMERCE
     0, --COMPRIMENTO_ECOMMERCE
     0, --PESO_ECOMMERCE
@@ -514,7 +520,7 @@ Values
     0  --FLAG_AGONISTAS
   )
 	
-	-- 9. Inserir na EST_PROD_CD_BARRA
+	-- 10. Inserir na EST_PROD_CD_BARRA
 	INSERT INTO EST_PROD_CD_BARRA(
 	CD_EMP, 
 	CD_PROD, 
@@ -551,7 +557,7 @@ Values
 		0
 	)
 
-	-- 10. Verifica se PRINCIPIO_ATIVO está preenchido no CSV e insere na EST_PROD_PRINC_ATIVOS_EST_PROD
+	-- 11. Verifica se PRINCIPIO_ATIVO está preenchido no CSV e insere na EST_PROD_PRINC_ATIVOS_EST_PROD
 	IF (LTRIM(RTRIM(ISNULL(@PRINCIPIO_ATIVO, ''))) <> '')
 	BEGIN
 		INSERT INTO EST_PROD_PRINC_ATIVOS_EST_PROD (
@@ -574,7 +580,7 @@ Values
 		);
 	END
 
-	-- 11. Verifica se o produto já existe na EST_PROD_EST_ARV_MERCADOLOGICA e realiza o insert ou update conforme necessidade
+	-- 12. Verifica se o produto já existe na EST_PROD_EST_ARV_MERCADOLOGICA e realiza o insert ou update conforme necessidade
 	MERGE INTO EST_PROD_EST_ARV_MERCADOLOGICA AS TARGET
 	USING (SELECT 
 			1 AS CD_EMP, 
@@ -584,24 +590,24 @@ Values
 	
 	WHEN MATCHED THEN 
 	UPDATE SET
-		CD_ARV_MERC_CATEG = @CATEGORIA,
+		CD_ARV_MERC_CATEG = @CATEGORIA_ARV,
 		CD_ARV_MERC_SEG = 000000,
 		CD_ARV_MERC_PAPEL = 000000,
 		CD_ARV_MERC_MIX = 000000,
 		CD_ARV_MERC_CONSUMO = 000000,
-		CD_ARV_MERC_LINHA = @LINHA,
+		CD_ARV_MERC_LINHA = @LINHA_ARV,
 		CD_ARV_MERC_MTZ_BCG = 000000,
 		CD_MC = @MARCA,
-		CD_ARV_MERC_FAMILIA = @FAMILIA,
+		CD_ARV_MERC_FAMILIA = @FAMILIA_ARV,
 		CD_USU = 1,
 		DT_ULT_ALT = @DT_CAD,
 		CD_APRES = 0,
 		CD_ARV_MERC_EQUI = 0,
 		CD_GRP_EXPO = 0,
-		CD_ARV_MERC_CLASSIFICACAO = @CLASS,
+		CD_ARV_MERC_CLASSIFICACAO = @CLASSIFICACAO_ARV,
 		CD_ARV_MERC_FASE = 0,
 		CD_ARV_MERC_GENERO = 0,
-		CD_ARV_MERC_CATEG_SUB = @SUB_CATEGORIA
+		CD_ARV_MERC_CATEG_SUB = @SUB_CATEG_ARV
 	
 	WHEN NOT MATCHED THEN 
 	INSERT (
@@ -629,27 +635,27 @@ Values
 	VALUES (
 		1,
 		@CD_PROD,
-		@CATEGORIA,
+		@CATEGORIA_ARV,
 		000000,
 		000000,
 		000000,
 		000000,
-		@LINHA,
+		@LINHA_ARV,
 		000000,
-		@MARCA,
-		@FAMILIA,
+		@MARCA_ARV,
+		@FAMILIA_ARV,
 		1,
 		@DT_CAD,
 		0,
 		0,
 		0,
-		@CLASS,
+		@CLASSIFICACAO_ARV,
 		0,
 		0,
-		@SUB_CATEGORIA
+		@SUB_CATEG_ARV
 	);
 	
-	-- 12. Inserir na EST_PROD_CPL para cada filial ativa
+	-- 13. Inserir na EST_PROD_CPL para cada filial ativa
 	DECLARE CUR_FILIAL CURSOR FOR
 	SELECT CD_FILIAL
 	FROM PRC_FILIAL
@@ -709,7 +715,7 @@ Values
 			0, 
 			0, 
 			0, 
-			0, -- SEMPRE 0 = NÃO USAR
+			@APLICAR_VERBA, -- FLAG_VERBA_DESCON SEMPRE 0 = NÃO USAR
 			0, 
 			0, 
 			'', 
@@ -723,7 +729,7 @@ Values
 	CLOSE CUR_FILIAL;
 	DEALLOCATE CUR_FILIAL;
 
-		-- 9. Inserir DADOS DE AUDITORIA
+		-- 14. Inserir DADOS DE AUDITORIA
 	INSERT INTO #TEMP_AUDITORIA(
 		DT_CAD,
 		CD_PROD, 
@@ -736,14 +742,16 @@ Values
 		@DESCRICAO
 	)
 
-	--  13. Próxima linha da tabela
+	--  15. Próxima linha da tabela
      FETCH NEXT FROM C_PROD INTO
         @DESCRICAO,
         @DESCRICAO_REDUZIDA,
         @FABRICANTE,
         @REGISTRO_MS,
         @SITUACAO,
-        @CLASSIFICACAO,
+        @SITUACAO,
+		@GENERICO,
+		@SIMILAR,
         @CLASS_ANVISA,
         @UN_FARMA,
         @UN_ANVISA,
@@ -776,10 +784,30 @@ Values
         @CLASSIFICACAO_ECOM;
 END;
 
---  14. Finaliza o cursor
+--  16. Finaliza o cursor
 CLOSE PROD_CURSOR;
 DEALLOCATE PROD_CURSOR;
+
+--  17. Gera relatório
+
+IF OBJECT_ID('tempdb..##TEMP_AUDITORIA_EXPORT') IS NOT NULL
+	DROP TABLE ##TEMP_AUDITORIA_EXPORT;
+
+SELECT * INTO ##TEMP_AUDITORIA_EXPORT FROM #TEMP_AUDITORIA;
+
+DECLARE @cmd VARCHAR(1000) = 
+    'bcp "SELECT * FROM tempdb.dbo.##TEMP_AUDITORIA_EXPORT" queryout "G:\Importar_produtos\produtos.csv" -c -t; -T -S ' + @@SERVERNAME;
+
+EXEC xp_cmdshell @cmd;
+
 
 
 DROP TABLE #TEMP_PRODUTOS;
 DROP TABLE #TEMP_AUDITORIA;
+
+COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
