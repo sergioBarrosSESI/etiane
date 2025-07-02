@@ -1,3 +1,5 @@
+BEGIN TRY
+    BEGIN TRANSACTION;
 -- 1.	Tabela temporária para armazenar os dados de auditoria
 
 IF OBJECT_ID('tempdb..#TEMP_AUDITORIA') IS NOT NULL
@@ -54,14 +56,12 @@ CREATE TABLE #TEMP_PRODUTOS (
     DESC_ECOMMERCE             VARCHAR(255),
     CLASSIFICACAO_ECOM         INT,
     EAN                        VARCHAR(100),
-    APLICAR_VERBA              VARCHAR(10),
     QT_PONTO_FIDELIDADE        INT,
     PRINCIPIO_ATIVO            INT,
     SUB_CATEG                  INT,
     CATEG                      INT,
     LINHA                      INT,
     MARCA                      INT,
-    CLASSIFICACAO_ECOM         INT,
     FAMILIA                    INT
 );
 
@@ -86,6 +86,8 @@ DECLARE @CD_PROD			INT,
 	@GENERICO				VARCHAR(10),
 	@SIMILAR				VARCHAR(10),
 	@ETICO						VARCHAR(10),
+    @RX                     VARCHAR(10),
+    @CLASSIFICACAO          VARCHAR(50),
     @CLASS_ANVISA					VARCHAR(100),
     @UN_FARMA				VARCHAR(50),
     @UN_ANVISA				VARCHAR(50),
@@ -117,15 +119,14 @@ DECLARE @CD_PROD			INT,
     @DESC_ECOMMERCE			VARCHAR(255),
     @CLASSIFICACAO_ECOM		INT,
     @EAN					VARCHAR(100),
-    @APLICAR_VERBA			VARCHAR(10),
     @QT_PONTO_FIDELIDADE	INT,
     @PRINCIPIO_ATIVO		INT,
     @SUB_CATEGORIA			INT,
     @CATEGORIA				INT,
     @LINHA					INT,
     @MARCA					INT,
-    @CLASSIFICACAO_ECOM		INT,
     @FAMILIA				INT,
+    @CLASS                  INT,
 	@DT_CAD					DATE = GETDATE();
 
 
@@ -783,3 +784,9 @@ DEALLOCATE PROD_CURSOR;
 
 DROP TABLE #TEMP_PRODUTOS;
 DROP TABLE #TEMP_AUDITORIA;
+COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
